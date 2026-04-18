@@ -31,7 +31,7 @@ struct Elf64_Sym {
 };
 
 // -------------------------------------------------------
-// Relocation 表結構 (自定義，供 ld4 使用)
+// Relocation 表結構 (自定義，供 c5tool link 使用)
 // -------------------------------------------------------
 struct Rela {
   long r_offset;   // text 中需要被填的 slot 位址 (以 long 為單位的 index)

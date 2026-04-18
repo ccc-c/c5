@@ -1,4 +1,4 @@
-// c5_elf_phase3.c - C in four functions (ELF Phase 3: Pure POSIX I/O)
+// c5.c - C in four functions (ELF Phase 3: Pure POSIX I/O)
 //
 // Refactored to use standard POSIX open/read/write/close.
 // Removed FILE and libc I/O wrappers. Fully self-compilable.
@@ -37,7 +37,7 @@ struct Elf64_Sym {
 };
 
 // -------------------------------------------------------
-// Relocation 表結構 (自定義，供 ld4 使用)
+// Relocation 表結構 (自定義，供 c5tool link 使用)
 // -------------------------------------------------------
 struct Rela {
   long r_offset;   // text 中需要被填的 slot 位址 (以 long 為單位的 index)
@@ -85,7 +85,7 @@ enum {
   Assign, Cond, Lor, Lan, Or, Xor, And, Eq, Ne, Lt, Gt, Le, Ge, Shl, Shr, Add, Sub, Mul, Div, Mod, Inc, Dec, Brak, Arrow, Dot
 };
 
-// [修改] 移除了 FOPN, FWRT, FCLS，加入了原生的 WRIT
+// 移除了原始 C4 對 libc FILE 的相依性 (FOPN, FWRT, FCLS)，使用原生的 POSIX SYS Calls
 enum { LLA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,
        OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,
        LF  ,SF  ,IMMF,ITF ,ITFS,FTI ,FADD,FSUB,FMUL,FDIV,
@@ -1069,7 +1069,7 @@ long run(long *pc, long *bp, long *sp, char *d_base, long *t_base, long poolsz) 
     else if (i == FLE) { fa = long_to_double(*sp++); fb = long_to_double(a); a = (fa <= fb); }
     else if (i == FGE) { fa = long_to_double(*sp++); fb = long_to_double(a); a = (fa >= fb); }
 
-    // [修改] 支援 3 參數的 open，並加入 write
+    // 支援 3 參數的 standard open syscall，並加入寫入 write
     else if (i == OPEN) a = open((char *)to_addr(sp[2], (long)d_base, poolsz), sp[1], *sp);
     else if (i == READ) a = read(sp[2], (char *)to_addr(sp[1], (long)d_base, poolsz), *sp);
     else if (i == WRIT) a = write(sp[2], (char *)to_addr(sp[1], (long)d_base, poolsz), *sp);
@@ -1125,7 +1125,7 @@ long compile(long argc, char **argv)
   long i, *t, exit_offset;
   char *outfile;
 
-  // [修改] 移除了 FOPN 等，加入了 WRIT
+  // 註冊 VM Opcode 字串 (加入 WRIT, FLOAT, 等新增的 opcode)
   instr_name = "LLA ,IMM ,JMP ,JSR ,BZ  ,BNZ ,ENT ,ADJ ,LEV ,LI  ,LC  ,SI  ,SC  ,PSH ,OR  ,XOR ,AND ,EQ  ,NE  ,LT  ,GT  ,LE  ,GE  ,SHL ,SHR ,ADD ,SUB ,MUL ,DIV ,MOD ,LF  ,SF  ,IMMF,ITF ,ITFS,FTI ,FADD,FSUB,FMUL,FDIV,FEQ ,FNE ,FLT ,FGT ,FLE ,FGE ,PRTF,OPEN,READ,WRIT,CLOS,PRTF,MALC,FREE,MSET,MCMP,EXIT,";
 
   outfile = 0;
@@ -1153,7 +1153,7 @@ long compile(long argc, char **argv)
   if (!(strtab_base = (char *)malloc(poolsz))) { return -1; }
   if (!(rela_base = (struct Rela *)malloc(poolsz))) { return -1; }
 
-  // [修改] open 固定傳入 3 參數，確保與 VM opcode 設計相符
+  // open 固定傳入 3 參數，對齊 Native VM opcode 設計
   if ((fd = open(*argv, 0, 0)) < 0) { printf("could not open(%s)\n", *argv); return -1; }
 
   memset(sym,  0, poolsz);
@@ -1167,7 +1167,7 @@ long compile(long argc, char **argv)
   strtab_base[0] = 0;
   rela_count = 0;
 
-  // [修改] 將 write 註冊為 syscall，移除 FILE。加入 extern 關鍵字。
+  // 將 POSIX I/O 及 printf、malloc 註冊為 syscall。加入 extern 關鍵字。
   p = "char double else enum float for break continue if int int64 long return short sizeof while struct extern open read write close printf malloc free memset memcmp exit void main";
   i = Char; while (i <= Extern) { next(); id->v_tk = i++; }
   i = OPEN; while (i <= EXIT) { next(); id->v_class = Sys; id->v_type = INT; id->v_val = i++; }

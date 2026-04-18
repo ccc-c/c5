@@ -1,4 +1,4 @@
-// elf4.c - Standalone ELF Loader, Virtual Machine, and Linker (Merged)
+// c5tool.c - Standalone ELF Loader, Virtual Machine, and Linker (Merged)
 // Self-hostable: written in the subset of C that c5 understands.
 
 #include <stdio.h>
@@ -336,16 +336,16 @@ long read_elf(long ei, char *filename) {
   char *shstr;
 
   fd = open(filename, 0, 0);
-  if (fd < 0) { printf("ld4: cannot open %s\n", filename); return -1; }
+  if (fd < 0) { printf("c5tool link: cannot open %s\n", filename); return -1; }
 
   elf_buf[ei] = (char *)malloc(poolsz);
   sz = read(fd, elf_buf[ei], poolsz);
   close(fd);
 
-  if (sz < 16) { printf("ld4: file too small: %s\n", filename); return -1; }
+  if (sz < 16) { printf("c5tool link: file too small: %s\n", filename); return -1; }
   if (elf_buf[ei][0] != 0x7f || elf_buf[ei][1] != 'E' ||
       elf_buf[ei][2] != 'L'  || elf_buf[ei][3] != 'F') {
-    printf("ld4: not ELF: %s\n", filename); return -1;
+    printf("c5tool link: not ELF: %s\n", filename); return -1;
   }
 
   e_shoff    = r64(elf_buf[ei], 40);
@@ -426,7 +426,7 @@ long pass1_collect(long n_elfs) {
         gidx = gsym_find(symname);
         if (gidx < 0) gidx = gsym_add(symname);
         if (gsym_def[gidx]) {
-          printf("ld4: duplicate definition of '%s'\n", symname);
+          printf("c5tool link: duplicate definition of '%s'\n", symname);
           return -1;
         }
         gsym_def[gidx]     = 1;
@@ -491,7 +491,7 @@ long pass2_reloc(long n_elfs, long *linked_text, char *linked_data) {
 
         gidx = gsym_find(symname);
         if (gidx < 0 || !gsym_def[gidx]) {
-          printf("ld4: undefined symbol '%s'\n", symname);
+          printf("c5tool link: undefined symbol '%s'\n", symname);
           return -1;
         }
         linked_text[target] = gsym_val[gidx];
@@ -520,7 +520,7 @@ void write_linked_elf(char *filename, long *linked_text, long text_longs,
   char *packed_sym; long sym_p;
   char *packed_str; long str_p;
 
-  // build minimal symtab: just 'main' for vm4 to find entry
+  // build minimal symtab: just 'main' for VM to find entry
   // (linked ELF has no undefined symbols)
   // strtab: "\0main\0"
   shstr = "\0.text\0.data\0.symtab\0.strtab\0.shstrtab\0";
@@ -541,7 +541,7 @@ void write_linked_elf(char *filename, long *linked_text, long text_longs,
   off_strtab     = off_symtab + symtab_sz;
 
   f = open(filename, 577, 420);
-  if (f < 0) { printf("ld4: cannot open output %s\n", filename); return; }
+  if (f < 0) { printf("c5tool link: cannot open output %s\n", filename); return; }
 
   hdr = (char *)malloc(off_text);
   i = 0; while (i < off_text) { hdr[i] = 0; i = i + 1; }
