@@ -102,11 +102,13 @@ static void toa_rcx_rsi(void){toa_rcx_rdi();e3(0x48,0x89,0xFE);}
 
 // ---- call %r11 with 16-byte alignment ----
 static void ccall(void){
-  e1(0x53);                      // push %rbx  (align+save)
-  e4(0x48,0x83,0xEC,0x08);       // sub $8,%rsp
-  e3(0x41,0xFF,0xD3);            // call *%r11
-  e4(0x48,0x83,0xC4,0x08);       // add $8,%rsp
-  e1(0x5B);                      // pop %rbx
+  // rsp is 8-aligned during JIT execution. push %rbx makes it 16-aligned.
+  // CALL then pushes ret-addr, leaving callee with 8-aligned rsp — exactly
+  // what System V ABI expects on function entry, so the callee's push %rbp
+  // produces a 16-aligned rbp suitable for MOVAPS and other aligned stores.
+  e1(0x53);                      // push %rbx  (8-aligned -> 16-aligned)
+  e3(0x41,0xFF,0xD3);            // call *%r11 (16-aligned -> 8-aligned at callee entry)
+  e1(0x5B);                      // pop  %rbx
 }
 static void cfn(void *fn){mr11((long)fn);ccall();}
 
@@ -327,6 +329,7 @@ static long compile_one(long pc){
     vpeek(0); e3(0x48,0x89,0xCA);     // rdx=mode
     e1(0x5F);                          // pop %rdi
     cfn((void*)open);
+  e3(0x48,0x63,0xC0);            // movsxd %eax,%rax (sign-extend int->long)
   }
   else if(op==READ){
     vpeek(2); e3(0x48,0x89,0xCF);     // rdi=fd
@@ -335,6 +338,7 @@ static long compile_one(long pc){
     vpeek(0); e3(0x48,0x89,0xCA);     // rdx=cnt
     e1(0x5F);
     cfn((void*)read);
+  e3(0x48,0x63,0xC0);            // movsxd %eax,%rax (sign-extend int->long)
   }
   else if(op==WRIT){
     vpeek(2); e3(0x48,0x89,0xCF);
@@ -343,9 +347,11 @@ static long compile_one(long pc){
     vpeek(0); e3(0x48,0x89,0xCA);
     e1(0x5F);
     cfn((void*)write);
+  e3(0x48,0x63,0xC0);            // movsxd %eax,%rax (sign-extend int->long)
   }
   else if(op==CLOS){
     vpeek(0); e3(0x48,0x89,0xCF); cfn((void*)close);
+  e3(0x48,0x63,0xC0);            // movsxd %eax,%rax (sign-extend int->long)
   }
   else if(op==PRTF){
     // nargs is the next ADJ operand (lookahead, NOT consumed here)
@@ -373,6 +379,7 @@ static long compile_one(long pc){
     vpeek(0); e3(0x48,0x89,0xCA);
     e1(0x5F);
     cfn((void*)memcmp);
+  e3(0x48,0x63,0xC0);            // movsxd %eax,%rax (sign-extend int->long)
   }
   else if(op==EXIT){
     vpeek(0); e3(0x48,0x89,0xC8);     // rax = exit code
