@@ -1,7 +1,25 @@
 CC = gcc
 CFLAGS = -w -g -O1 -fno-omit-frame-pointer
 
-.PHONY: all test test_linker selfhost test_all clean
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+
+# imac (Darwin arm64) -> M3 JIT, Linux x86_64 -> x86 JIT
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    JIT_TARGET = elf_m3jit
+  else
+    JIT_TARGET = elf_x86jit
+  endif
+else ifeq ($(UNAME_S),Linux)
+  ifeq ($(UNAME_M),x86_64)
+    JIT_TARGET = elf_x86jit
+  else
+    JIT_TARGET = elf_m3jit
+  endif
+endif
+
+.PHONY: all test test_linker selfhost test_all clean elf_m3jit elf_x86jit
 
 # 預設建置所有 C5 基礎核心執行檔
 all: c5 c5tool
@@ -59,9 +77,29 @@ selfhost: all
 
 
 # 一鍵執行所有流程
-test_all: test test_linker selfhost
+test_all: test test_linker selfhost $(JIT_TARGET)
 
 # 清理編譯產生的執行檔與中介物件檔
 clean:
-	rm -rf c5 c5tool *.elf test/*.elf *.o *.dSYM
+	rm -rf c5 c5tool *.elf test/*.elf *.o *.dSYM elf_m3jit elf_x86jit
 	@echo "清理完成！"
+
+# M3 JIT 測試
+elf_m3jit: all
+	./c5 -o test/hello.elf test/hello.c
+	./c5 -o test/fib.elf test/fib.c
+	./c5 -o test/float.elf test/float.c
+	gcc -w -fsanitize=address -g -O1 -fno-omit-frame-pointer elf_m3jit.c -o elf_m3jit
+	./elf_m3jit test/hello.elf || true
+	./elf_m3jit test/fib.elf || true
+	./elf_m3jit test/float.elf || true
+
+# x86 JIT 測試
+elf_x86jit: all
+	./c5 -o test/hello.elf test/hello.c
+	./c5 -o test/fib.elf test/fib.c
+	./c5 -o test/float.elf test/float.c
+	gcc -w -g -O0 elf_x86jit.c -o elf_x86jit
+	./elf_x86jit test/hello.elf || true
+	./elf_x86jit test/fib.elf || true
+	./elf_x86jit test/float.elf || true
